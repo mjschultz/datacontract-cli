@@ -141,5 +141,9 @@ exporter_factory.register_lazy_exporter(
 )
 
 exporter_factory.register_lazy_exporter(
+    name=ExportFormat.iceberg, module_path="datacontract.export.iceberg_converter", class_name="IcebergExporter"
+)
+
+exporter_factory.register_lazy_exporter(
     name=ExportFormat.spark, module_path="datacontract.export.spark_converter", class_name="SparkExporter"
 )
