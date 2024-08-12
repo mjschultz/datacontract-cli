@@ -6,7 +6,7 @@ from logging import getLogger
 from typing import List
 
 from datacontract.imports.importer import Importer
-from datacontract.model.data_contract_specification import DataContractSpecification, Model, Field
+from datacontract.model.data_contract_specification import DataContractSpecification, Model, Field, Definition
 from datacontract.model.exceptions import DataContractException
 
 
@@ -116,7 +116,7 @@ class OcsfToContract:
         "boolean_t": "boolean",
         "float_t": "float",
         "integer_t": "integer",
-        "json_t": "struct",
+        "json_t": "string",
         "long_t": "long",
         "string_t": "string",
     }
@@ -165,7 +165,7 @@ class OcsfToContract:
             "description": description,
             "minLength": min_len,
             "maxLength": max_len,
-            "pattern": pattern,  # TODO: yaml formatting is messed up
+            # "pattern": pattern,  # TODO: yaml formatting is messed up
             "minimum": range_[0],
             "maximum": range_[1],
             "observable_id": observable_id,
@@ -233,7 +233,7 @@ class OcsfToContract:
         base_type = spec.get("type")
         if obj_type:
             kwargs["type"] = "object"
-            kwargs["ref_obj"] = self.get_object(obj_type, stack)
+            kwargs["$ref"] = f'#/definitions/{obj_type}'
         elif base_type:
             base = self.get_scalar_type(base_type)
             kwargs = dict(ChainMap(kwargs, base))
@@ -263,11 +263,33 @@ class OcsfToContract:
         fields = {}
         for name, spec in attributes.items():
             try:
-                fields[name] = self._get_field_args(name, spec, stack)
+                fields[name] = Field(**self._get_field_args(name, spec, stack))
             except DeprecatedField:
                 log.warning(f"{name}: is deprecated, skipping")
 
         return fields
+
+    def get_definitions(self, model_fields, known_definitions=None):
+        known_definitions = known_definitions or {}
+        for field_name, field in model_fields.items():
+            if isinstance(field, dict):
+                ref = field.get('$ref')
+            elif isinstance(field, Field):
+                ref = field.ref
+            else:
+                continue
+            if not (ref and ref.startswith('#/definitions/')):
+                continue
+
+            obj_to_include = ref.split('/')[-1]
+            if obj_to_include in known_definitions:
+                continue
+
+            log.error(f'including: {obj_to_include}')
+            defn = self.get_object(obj_to_include)
+            known_definitions[obj_to_include] = defn
+            known_definitions = self.get_definitions(defn['fields'], known_definitions)
+        return known_definitions
 
 
 def import_ocsfschema(
@@ -288,7 +310,7 @@ def import_ocsfschema(
             "title": spec.get("name", name),
             "description": clean_html(spec.get("description")),
             "type": spec.get("type", "table"),
-            "fields": {k: Field(**v) for k, v in fields.items()},
+            "fields": fields,
         }
         # would be nice to have profiles and category/category uid
         # associations/constraints/deprecated
@@ -299,10 +321,7 @@ def import_ocsfschema(
 
     definitions = {}
     for model_name, model in data_contract_specification.models.items():
-        for field_name, field in model.fields.items():
-            if field.ref_obj:
-                definitions[field.ref_obj.name] = field.ref_obj
-
+        definitions = ocsf_contract.get_definitions(model.fields, definitions)
     data_contract_specification.definitions = definitions
 
     return data_contract_specification
