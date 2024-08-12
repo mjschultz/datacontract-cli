@@ -48,23 +48,38 @@ def resolve_data_contract_from_location(
     return _resolve_data_contract_from_str(data_contract_str, schema_location, inline_definitions, inline_quality)
 
 
+def inline_fields_into_data_contract(fields, spec, stack=None):
+    stack = stack or set()
+    for field in fields.values():
+        # If ref_obj is not empty, we've already inlined definitions.
+        if not field.ref and not field.ref_obj:
+            continue
+
+        if field.ref in stack:
+            continue
+        stack.add(field.ref)
+
+        definition = _resolve_definition_ref(field.ref, spec)
+        field.ref_obj = definition
+
+        for field_name in field.model_fields.keys():
+            if field_name in definition.model_fields_set and field_name not in field.model_fields_set:
+                setattr(field, field_name, getattr(definition, field_name))
+        # extras
+        for extra_field_name, extra_field_value in definition.model_extra.items():
+            if extra_field_name not in field.model_extra.keys():
+                setattr(field, extra_field_name, extra_field_value)
+
+        # the definitions themselves may have fields we should inline those too!
+        # TODO: should we restrict to prevent recursion depth
+        if definition.fields:
+            inline_fields_into_data_contract(definition.fields, spec, stack)
+        stack.remove(field.ref)
+
+
 def inline_definitions_into_data_contract(spec: DataContractSpecification):
     for model in spec.models.values():
-        for field in model.fields.values():
-            # If ref_obj is not empty, we've already inlined definitions.
-            if not field.ref and not field.ref_obj:
-                continue
-
-            definition = _resolve_definition_ref(field.ref, spec)
-            field.ref_obj = definition
-
-            for field_name in field.model_fields.keys():
-                if field_name in definition.model_fields_set and field_name not in field.model_fields_set:
-                    setattr(field, field_name, getattr(definition, field_name))
-            # extras
-            for extra_field_name, extra_field_value in definition.model_extra.items():
-                if extra_field_name not in field.model_extra.keys():
-                    setattr(field, extra_field_name, extra_field_value)
+        inline_fields_into_data_contract(model.fields, spec)
 
 
 def _resolve_definition_ref(ref, spec) -> Definition:
