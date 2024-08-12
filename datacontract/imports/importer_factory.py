@@ -66,6 +66,11 @@ importer_factory.register_lazy_importer(
     class_name="JsonSchemaImporter",
 )
 importer_factory.register_lazy_importer(
+    name=ImportFormat.ocsf,
+    module_path="datacontract.imports.ocsf_importer",
+    class_name="OcsfImporter",
+)
+importer_factory.register_lazy_importer(
     name=ImportFormat.odcs,
     module_path="datacontract.imports.odcs_importer",
     class_name="OdcsImporter",

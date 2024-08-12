@@ -25,6 +25,7 @@ class ImportFormat(str, Enum):
     glue = "glue"
     jsonschema = "jsonschema"
     bigquery = "bigquery"
+    ocsf = "ocsf"
     odcs = "odcs"
     unity = "unity"
     spark = "spark"

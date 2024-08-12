@@ -223,6 +223,7 @@ def import_(
             help="List of table ids to import from the bigquery API (repeat for multiple table ids, leave empty for all tables in the dataset)."
         ),
     ] = None,
+    ocsf_class: Annotated[Optional[List[str]], typer.Option(help="List of OCSF classes to import.")] = None,
     unity_table_full_name: Annotated[
         Optional[str], typer.Option(help="Full name of a table in the unity catalog")
     ] = None,
@@ -243,6 +244,7 @@ def import_(
         bigquery_table=bigquery_table,
         bigquery_project=bigquery_project,
         bigquery_dataset=bigquery_dataset,
+        ocsf_class=ocsf_class,
         unity_table_full_name=unity_table_full_name,
         dbt_model=dbt_model,
     )
