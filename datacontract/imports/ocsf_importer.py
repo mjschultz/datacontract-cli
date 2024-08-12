@@ -6,7 +6,7 @@ from logging import getLogger
 from typing import List
 
 from datacontract.imports.importer import Importer
-from datacontract.model.data_contract_specification import DataContractSpecification, Model, Field, Definition
+from datacontract.model.data_contract_specification import DataContractSpecification, Model, Field
 from datacontract.model.exceptions import DataContractException
 
 
@@ -233,7 +233,7 @@ class OcsfToContract:
         base_type = spec.get("type")
         if obj_type:
             kwargs["type"] = "object"
-            kwargs["$ref"] = f'#/definitions/{obj_type}'
+            kwargs["$ref"] = f"#/definitions/{obj_type}"
         elif base_type:
             base = self.get_scalar_type(base_type)
             kwargs = dict(ChainMap(kwargs, base))
@@ -273,22 +273,22 @@ class OcsfToContract:
         known_definitions = known_definitions or {}
         for field_name, field in model_fields.items():
             if isinstance(field, dict):
-                ref = field.get('$ref')
+                ref = field.get("$ref")
             elif isinstance(field, Field):
                 ref = field.ref
             else:
                 continue
-            if not (ref and ref.startswith('#/definitions/')):
+            if not (ref and ref.startswith("#/definitions/")):
                 continue
 
-            obj_to_include = ref.split('/')[-1]
+            obj_to_include = ref.split("/")[-1]
             if obj_to_include in known_definitions:
                 continue
 
-            log.error(f'including: {obj_to_include}')
+            log.error(f"including: {obj_to_include}")
             defn = self.get_object(obj_to_include)
             known_definitions[obj_to_include] = defn
-            known_definitions = self.get_definitions(defn['fields'], known_definitions)
+            known_definitions = self.get_definitions(defn["fields"], known_definitions)
         return known_definitions
 
 
