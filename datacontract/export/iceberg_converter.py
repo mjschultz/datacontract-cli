@@ -156,7 +156,7 @@ def get_field_type(field: Field) -> types.IcebergType:
     return types.BinaryType()
 
 
-def schema_str(schema: Schema) -> str:
+def schema_str(schema: Schema, sep: str = ' ') -> str:
     """
     Converts a PyIceberg IcebergType schema to its equivalent code representation.
 
@@ -183,7 +183,7 @@ def schema_str(schema: Schema) -> str:
     def handle_field_type(field):
         field_type = field.field_type
         if isinstance(field_type, types.StructType):
-            things = schema_str(field_type)
+            things = schema_str(field_type, ':')
             return f'struct<{things}>'
         elif isinstance(field_type, types.ListType):
             things = '???'
@@ -197,7 +197,7 @@ def schema_str(schema: Schema) -> str:
     top_level = []
     for field in schema.fields:
         field_type = handle_field_type(field)
-        top_level.append(f'{field.name} {field_type}')
+        top_level.append(f'{field.name}{sep}{field_type}')
 
     _str = ',\n'.join(indent(t, 1) for t in top_level)
     return f'\n{_str}\n'
