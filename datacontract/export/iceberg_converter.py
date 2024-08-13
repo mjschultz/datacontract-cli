@@ -52,11 +52,16 @@ def to_iceberg(contract: DataContractSpecification) -> str:
     Returns:
         str: A string representation of the Iceberg schema for each model in the contract.
     """
+    # parsing
+    schemas = []
+    for model_name, model in contract.models.items():
+        schemas.append(to_iceberg_schema(model))
+
+    # printing
     ddl = []
     partitions = []
     location = ''
-    for model_name, model in contract.models.items():
-        schema = to_iceberg_schema(model)
+    for schema in schemas:
         stmt_parts = [f'CREATE TABLE "{model_name}" ({schema_str(schema)})']
         if partitions:
             stmt_parts.append(f'PARTITIONED BY ({", ".join(partitions)}) ')
