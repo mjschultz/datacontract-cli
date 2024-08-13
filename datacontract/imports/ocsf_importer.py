@@ -6,7 +6,7 @@ from logging import getLogger
 from typing import List
 
 from datacontract.imports.importer import Importer
-from datacontract.model.data_contract_specification import DataContractSpecification, Model, Field
+from datacontract.model.data_contract_specification import DataContractSpecification, Model, Field, Definition
 from datacontract.model.exceptions import DataContractException
 
 
@@ -230,7 +230,7 @@ class OcsfToContract:
         if obj_type:
             base = {
                 'type': 'object',
-                '$ref': f"#/definitions/{obj_type}",
+                '$ref': obj_type,
             }
         else:
             base = self.get_scalar_type(base_type)
@@ -273,17 +273,17 @@ class OcsfToContract:
     def get_definitions(self, model_fields, known_definitions=None):
         known_definitions = known_definitions or {}
         for field_name, field in model_fields.items():
-            ref = field.ref
-            if not (ref and ref.startswith("#/definitions/")):
+            if not field.ref:
+                continue
+            ref_name = field.ref
+            field.ref = f'#/definitions/{field.ref}'
+
+            if ref_name in known_definitions:
                 continue
 
-            obj_to_include = ref.split("/")[-1]
-            if obj_to_include in known_definitions:
-                continue
-
-            defn = self.get_object(obj_to_include)
-            known_definitions[obj_to_include] = defn
-            known_definitions = self.get_definitions(defn["fields"], known_definitions)
+            defn = Definition(**self.get_object(ref_name))
+            known_definitions[ref_name] = defn
+            known_definitions = self.get_definitions(defn.fields, known_definitions)
         return known_definitions
 
 
