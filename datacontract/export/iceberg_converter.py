@@ -97,6 +97,17 @@ def make_field(field_name, field):
     )
 
 
+def make_list(item):
+    global field_id
+    field_id += 1
+    field_type = get_field_type(item)
+    return types.ListType(
+        element_id=field_id,
+        element_type=field_type,
+        element_required=item.required
+    )
+
+
 def to_struct_type(fields: dict[str, Field]) -> types.StructType:
     """
     Convert a dictionary of fields to a Iceberg StructType.
@@ -128,7 +139,7 @@ def get_field_type(field: Field) -> types.IcebergType:
     if field_type is None or field_type in ["null"]:
         return types.NullType()
     if field_type == "array":
-        return types.ArrayType(to_data_type(field.items))
+        return make_list(field.items)
     if field_type in ["object", "record", "struct"]:
         return to_struct_type(field.fields)
     if field_type in ["string", "varchar", "text"]:
@@ -181,12 +192,17 @@ def schema_str(schema: Schema, sep: str = ' ') -> str:
         return "\n".join([f'{"    " * level}{line}' for line in text.split("\n")])
 
     def handle_field_type(field):
-        field_type = field.field_type
+        if isinstance(field, types.NestedField):
+            field_type = field.field_type
+        elif isinstance(field, types.ListType):
+            field_type = field.element_type
+        else:
+            field_type = field.type
         if isinstance(field_type, types.StructType):
             things = schema_str(field_type, ':')
             return f'struct<{things}>'
         elif isinstance(field_type, types.ListType):
-            things = '???'
+            things = handle_field_type(field_type)
             return f'array<{things}>'
         elif isinstance(field_type, types.DecimalType):
             return f"decimal({dtype.precision}, {dtype.scale})"
