@@ -51,6 +51,10 @@ def resolve_data_contract_from_location(
 def inline_fields_into_data_contract(fields, spec, stack=None):
     stack = stack or set()
     for field in fields.values():
+        if field.type == 'array' and field.items:
+            items = {'items': field.items}
+            inline_fields_into_data_contract(items, spec, stack)
+
         # If ref_obj is not empty, we've already inlined definitions.
         if not field.ref and not field.ref_obj:
             continue
