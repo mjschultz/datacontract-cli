@@ -272,7 +272,10 @@ class OcsfToContract:
 
     def get_definitions(self, model_fields, known_definitions=None):
         known_definitions = known_definitions or {}
-        for field_name, field in model_fields.items():
+        for field in model_fields.values():
+            if field.items is not None:
+                items = {'items': field.items}
+                known_definitions = self.get_definitions(items, known_definitions)
             if not field.ref:
                 continue
             ref_name = field.ref
