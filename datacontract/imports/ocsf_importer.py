@@ -144,7 +144,7 @@ class OcsfToContract:
                 INTERNAL_OBJECTS,  # why doesn't ocsf-lib-py include?
             )
         )
-        self.ocsf_types = {}
+        self.ocsf_types = {None: {}}
         self.ocsf_objects = {None: {}}
 
     def _clean_dict(self, d):
@@ -153,7 +153,7 @@ class OcsfToContract:
     def _build_scalar_type(self, name):
         spec = self.base_schema["types"][name]
         true_type = spec.get("type") or name
-        description = (clean_html(spec.get("description")),)
+        description = clean_html(spec.get("description"))
         min_len = spec.get("min_len")
         max_len = spec.get("min_len")
         pattern = spec.get("regex")
@@ -178,31 +178,26 @@ class OcsfToContract:
             self.ocsf_types[name] = self._build_scalar_type(name)
         return self.ocsf_types[name]
 
-    def _build_object(self, name, stack):
+    def _build_object(self, name):
         spec = self.base_schema["objects"][name]
         extends = spec.get("extends")
-        base_object = self.get_object(extends, stack)
+        base_object = self.get_object(extends)
         this_object = {
             "name": name,
             "title": spec.get("caption"),
             "description": clean_html(spec.get("description")),
             "type": "object",
-            "fields": self.get_fields(spec["attributes"], stack),
+            "fields": self.get_fields(spec["attributes"]),
         }
         this_object = self._clean_dict(this_object)
         return dict(ChainMap(this_object, base_object))
 
-    def get_object(self, name, stack=None):
-        stack = stack or []
-        log.error(f'get_object({name}, {"->".join(str(s) for s in stack)})')
-        if name in stack:
-            return {}
-        stack.append(name)
+    def get_object(self, name):
         if name not in self.ocsf_objects:
-            self.ocsf_objects[name] = self._build_object(name, stack)
+            self.ocsf_objects[name] = self._build_object(name)
         return self.ocsf_objects[name]
 
-    def _get_field_args(self, name, spec, stack):
+    def _get_field_args(self, name, spec):
         kwargs = {
             "title": spec.get("caption") or name,
             "description": clean_html(spec.get("description")),
@@ -213,7 +208,8 @@ class OcsfToContract:
             raise DeprecatedField()
 
         if name == "$include":
-            log.error(f"TODO: $include: {name} of {spec}")
+            # Need an example of this
+            log.warning(f"not handling `$include`: {name} for {spec}")
             return kwargs
 
         group = spec.get("group")
@@ -232,22 +228,28 @@ class OcsfToContract:
         obj_type = spec.get("object_type")
         base_type = spec.get("type")
         if obj_type:
-            kwargs["type"] = "object"
-            kwargs["$ref"] = f"#/definitions/{obj_type}"
-        elif base_type:
+            base = {
+                'type': 'object',
+                '$ref': f"#/definitions/{obj_type}",
+            }
+        else:
             base = self.get_scalar_type(base_type)
-            kwargs = dict(ChainMap(kwargs, base))
 
         is_array = spec.get("is_array")
         if is_array:
-            log.error(f"TODO: handle_array: {name} is_array")
+            # array should put the type info into the `items` field
+            base = {
+                'type': 'array',
+                'items': base,
+            }
 
-        if obj_type and base_type:
-            log.error(f"{name} is obj_type:{obj_type} AND base_type:{base_type}")
+        kwargs = dict(ChainMap(kwargs, base))
 
         enum = spec.get("enum")
         if enum:
-            log.error(f"handle enum: {name} with {enum}")
+            # DataContract requires str type here
+            # TODO: disagree with that
+            kwargs['enum'] = [str(k) for k in enum.keys()]
 
         # requirement(s)
         requirement = spec.get("requirement")
@@ -258,12 +260,11 @@ class OcsfToContract:
 
         return kwargs
 
-    def get_fields(self, attributes, stack=None):
-        stack = stack or []
+    def get_fields(self, attributes):
         fields = {}
         for name, spec in attributes.items():
             try:
-                fields[name] = Field(**self._get_field_args(name, spec, stack))
+                fields[name] = Field(**self._get_field_args(name, spec))
             except DeprecatedField:
                 log.warning(f"{name}: is deprecated, skipping")
 
@@ -272,12 +273,7 @@ class OcsfToContract:
     def get_definitions(self, model_fields, known_definitions=None):
         known_definitions = known_definitions or {}
         for field_name, field in model_fields.items():
-            if isinstance(field, dict):
-                ref = field.get("$ref")
-            elif isinstance(field, Field):
-                ref = field.ref
-            else:
-                continue
+            ref = field.ref
             if not (ref and ref.startswith("#/definitions/")):
                 continue
 
@@ -285,7 +281,6 @@ class OcsfToContract:
             if obj_to_include in known_definitions:
                 continue
 
-            log.error(f"including: {obj_to_include}")
             defn = self.get_object(obj_to_include)
             known_definitions[obj_to_include] = defn
             known_definitions = self.get_definitions(defn["fields"], known_definitions)
